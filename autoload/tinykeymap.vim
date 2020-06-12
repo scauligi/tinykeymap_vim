@@ -182,8 +182,8 @@ function! tinykeymap#EnterMap(name, map, ...) "{{{3
                 throw warning_msg
             endif
         endif
-        let cmd  = mode . (remap ? 'map' : 'noremap')
-        let rhs  = s:RHS(mode, ':call tinykeymap#Call('. string(a:name) .')<cr>')
+        let cmd  = mode . (remap ? 'map' : 'noremap') . ' <expr> <silent>'
+        let rhs  = s:RHS(mode, "\":<C-u>call tinykeymap#Call(" . string(a:name) . ", \" . v:count . \")<cr>\"")
         " echom "DBG" cmd buffer_local a:map rhs
         exec cmd buffer_local a:map rhs
         let options.map = a:map
@@ -367,7 +367,7 @@ endf
 
 
 " :nodoc:
-function! tinykeymap#Call(name) "{{{3
+function! tinykeymap#Call(name, start_count) "{{{3
     if !tinykeymap#Load(a:name)
         throw "tinykeymaps: Unknown map: ". a:name
     endif
@@ -401,7 +401,7 @@ function! tinykeymap#Call(name) "{{{3
     let remap = get(options, 'remap', 0)
     let mode0 = remap ? 'm' : 'n'
     if !empty(start)
-        exec start
+        exec (a:start_count ? a:start_count : '') . start
     endif
     try
         let keys = []
