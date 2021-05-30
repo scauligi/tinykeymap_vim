@@ -397,7 +397,6 @@ function! tinykeymap#Call(name, map, start_count) "{{{3
         endif
     endif
     let pos = getpos('.')
-    let first_run = 1
     let time = 0
     let s:count = ''
     let ruler = &ruler
@@ -487,21 +486,9 @@ function! tinykeymap#Call(name, map, start_count) "{{{3
                     endif
                     if status == 0 " unhandled key
                         let chars = s:Keys2Chars(keys)
-                        if first_run
-                            if time > &timeoutlen
-                                let mode = 'm'
-                            else
-                                let map = options.map
-                                let char = s:Map2Char(map)
-                                call insert(chars, char)
-                                let mode = 'n'
-                            endif
-                        else
-                            let mode = 'm'
-                        endif
                         let fkeys = join(chars, '')
-                        " TLogVAR time, first_run, keys, fkeys, chars, mode
-                        call feedkeys(fkeys, mode)
+                        " TLogVAR time, keys, fkeys, chars, mode
+                        call feedkeys(fkeys)
                         break
                     elseif status == -1 || status == 1 || status == 2
                         " TLogVAR status
@@ -525,7 +512,6 @@ function! tinykeymap#Call(name, map, start_count) "{{{3
                             " handled key
                             let keys = []
                             let time = 0
-                            let first_run = 0
                         endif
                     elseif status == 3 || status == 4
                         let time = 0
