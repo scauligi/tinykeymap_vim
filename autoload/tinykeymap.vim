@@ -87,7 +87,7 @@ endif
 
 
 let s:tinykeymaps = {}
-let s:oid = "\<esc>options"
+let s:oid_prefix = "\<Esc>"
 
 
 " Load pre-defined tinykeymaps.
@@ -183,12 +183,15 @@ function! tinykeymap#EnterMap(name, map, ...) "{{{3
             endif
         endif
         let cmd  = mode . (remap ? 'map' : 'noremap') . ' <expr> <silent>'
-        let rhs  = s:RHS(mode, "\":<C-u>call tinykeymap#Call(" . string(a:name) . ", \" . v:count . \")<cr>\"")
+        let rhs  = s:RHS(mode, "\":<C-u>call tinykeymap#Call(" . string(a:name) . ", " . string(a:map) . ", \" . v:count . \")<cr>\"")
         " echom "DBG" cmd buffer_local a:map rhs
         exec cmd buffer_local a:map rhs
         let options.map = a:map
     endif
-    let dict[a:name] = {s:oid : copy(options)}
+    if !has_key(dict, a:name)
+        let dict[a:name] = {s:oid_prefix : options.name}
+    endif
+    let dict[a:name][s:oid_prefix . a:map] = copy(options)
 endf
 
 
@@ -199,29 +202,33 @@ function! tinykeymap#Info(show_all) "{{{3
         let dict = extend(dict, b:tinykeymaps)
     endif
     let msg = ['Loaded tinykeymaps:']
-    let namemaxlen = max(map(copy(dict), 'strwidth(get(get(v:val, s:oid, {}), "name", v:key))'))
+    let namemaxlen = max(map(copy(dict), 'strwidth(get(v:val, s:oid_prefix, v:key))'))
     for [name, values] in items(dict)
-        let options = get(values, s:oid, {})
-        let myname = get(options, 'name', name)
-        if a:show_all
-            call add(msg, printf('-- %s %s', myname, repeat('-', max([1, &columns - strwidth(myname) - 5]))))
-        else
-            let myopts = []
-        endif
-        for [optname, optvalue] in items(options)
+        let myname = get(values, s:oid_prefix, name)
+        for [key, options] in items(values)
+            if key == s:oid_prefix || key !~ '^' . s:oid_prefix
+                continue
+            endif
             if a:show_all
-                call add(msg, printf("  %10s: %s", optname, string(optvalue)))
-            elseif index(['name', 'message', 'start', 'stop', 'after'], optname) == -1
-                if optname == 'map'
-                    call insert(myopts, printf("%s: %s", optname, string(optvalue)),0)
-                else
-                    call add(myopts, printf("%s: %s", optname, string(optvalue)))
+                call add(msg, printf('-- %s %s', myname, repeat('-', max([1, &columns - strwidth(myname) - 5]))))
+            else
+                let myopts = []
+            endif
+            for [optname, optvalue] in items(options)
+                if a:show_all
+                    call add(msg, printf("  %10s: %s", optname, string(optvalue)))
+                elseif index(['name', 'message', 'start', 'stop', 'after'], optname) == -1
+                    if optname == 'map'
+                        call insert(myopts, printf("%s: %s", optname, string(optvalue)),0)
+                    else
+                        call add(myopts, printf("%s: %s", optname, string(optvalue)))
+                    endif
                 endif
+            endfor
+            if !a:show_all
+                call add(msg, printf("%". (namemaxlen + 1) ."s: %s", myname, join(myopts, ', ')))
             endif
         endfor
-        if !a:show_all
-            call add(msg, printf("%". (namemaxlen + 1) ."s: %s", myname, join(myopts, ', ')))
-        endif
     endfor
     echo join(msg, "\n")
     call tinykeymap#PressEnter()
@@ -367,15 +374,15 @@ endf
 
 
 " :nodoc:
-function! tinykeymap#Call(name, start_count) "{{{3
+function! tinykeymap#Call(name, map, start_count) "{{{3
     if !tinykeymap#Load(a:name)
         throw "tinykeymaps: Unknown map: ". a:name
     endif
     let dict = s:GetDict(a:name)
-    let options = dict[s:oid]
+    let options = dict[s:oid_prefix . a:map]
     " TLogVAR dict
     " TLogVAR options
-    let msg = get(options, 'name', a:name)
+    let msg = get(dict, s:oid_prefix, a:name)
     let maxlen = float2nr(&columns * 0.8)
     " let maxlen = float2nr((&columns * &cmdheight) * 0.8)
     let messenger = get(options, 'message', '')
@@ -464,11 +471,12 @@ function! tinykeymap#Call(name, start_count) "{{{3
                 elseif type(key) == 1 && key ==# "\<F1>"
                     " TLogVAR "<f1>"
                     call s:Help(dict)
-                elseif type(key) == 1 && key ==# "\<Del>"
+                elseif type(key) == 1 && (key ==# "\<Del>" || key ==# "\<BS>")
                     " TLogVAR "<del>"
                     if !empty(s:count)
                         let s:count = s:count[0 : -2]
                     endif
+                    let time = 0
                 else
                     " TLogVAR "other key"
                     call add(keys, key)
@@ -554,7 +562,7 @@ endf
 
 function! s:Help(dict) "{{{3
     " TLogVAR a:dict
-    echo "tinykeymap: Help for ". a:dict[s:oid].name
+    echo "tinykeymap: Help for ". a:dict[s:oid_prefix]
     for [key, def] in sort(items(a:dict))
         if key !~ "^\<Esc>"
             let key = get(def.options, 'name', key)
@@ -689,7 +697,7 @@ function! s:CheckChars(dict, chars) "{{{3
     let sakeys = string(a:chars)
     " TLogVAR sakeys, alen
     for [sokeys, def] in items(a:dict)
-        if sokeys != s:oid
+        if sokeys !~ '^' . s:oid_prefix
             " TLogVAR sokeys, def
             let ochars = def.chars
             let llen = len(ochars)
