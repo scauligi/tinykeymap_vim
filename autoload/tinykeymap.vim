@@ -2,8 +2,8 @@
 " @Author:      Tom Link (mailto:micathom AT gmail com?subject=[vim])
 " @License:     GPL (see http://www.gnu.org/licenses/gpl.txt)
 " @Created:     2012-08-27.
-" @Last Change: 2019-03-08.
-" @Revision:    700
+" @Last Change: 2024-02-17.
+" @Revision:    701
 
 
 if !exists('g:tinykeymap#mapleader')
@@ -56,6 +56,7 @@ if !exists('g:tinykeymap#show_message')
     " Where to show a tinykeymap's message. Possible values:
     "     cmdline (default value)
     "     statusline
+    "     hidden
     let g:tinykeymap#show_message = 'cmdline'   "{{{2
 endif
 
@@ -183,7 +184,11 @@ function! tinykeymap#EnterMap(name, map, ...) "{{{3
             endif
         endif
         let cmd  = mode . (remap ? 'map' : 'noremap')
-        let rhs  = s:RHS(mode, ':call tinykeymap#Call('. string(a:name) .')<cr>')
+        if v:version > 802 || (v:version == 802 && has('patch1978'))
+            let rhs  = '<Cmd>call tinykeymap#Call('. string(a:name) .')<cr>'
+        else
+            let rhs  = s:RHS(mode, ':call tinykeymap#Call('. string(a:name) .')<cr>')
+        endif
         " echom "DBG" cmd buffer_local a:map rhs
         exec cmd buffer_local a:map rhs
         let options.map = a:map
@@ -400,6 +405,10 @@ function! tinykeymap#Call(name) "{{{3
     let start = get(options, 'start', '')
     let remap = get(options, 'remap', 0)
     let mode0 = remap ? 'm' : 'n'
+    let g:tinykeymaps_active = a:name
+    if exists('#User#TinykeymapsStart')
+      doautocmd User TinykeymapsStart
+    endif
     if !empty(start)
         exec start
     endif
@@ -439,9 +448,11 @@ function! tinykeymap#Call(name) "{{{3
                     endif
                     let message = s:ShortMessage(message, maxlen)
                     redraw
-                    echohl ModeMsg
-                    echo message
-                    echohl NONE
+                    if g:tinykeymap#show_message !=# 'hidden'
+                      echohl ModeMsg
+                      echo message
+                      echohl NONE
+                    endif
                     let update_message = 0
                 endif
                 exec 'sleep' resolution_s
@@ -537,6 +548,10 @@ function! tinykeymap#Call(name) "{{{3
     finally
         let stop = get(options, 'stop', '')
         " TLogVAR stop
+        let g:tinykeymaps_active = ''
+        if exists('#User#TinykeymapsStop')
+          doautocmd User TinykeymapsStop
+        endif
         if !empty(stop)
             exec stop
         endif
